@@ -1,16 +1,17 @@
 var express = require('express');
-var firebase = require('firebase');
+var admin = require('firebase-admin');
+var serviceCreds = require('./service-creds.json');
 
 var app = express();
 
-var config = {
-};
+admin.initializeApp({
+  credential: admin.credential.cert(serviceCreds),
+  databaseURL: 'https://clik-e3afb.firebaseio.com'
+});
 
-firebase.initializeApp(config);
-
-var dbRef = firebase.database().ref();
-var usersRef = firebase.database().ref('users');
-var usersByPrefRef = firebase.database().ref('users-by-pref');
+var dbRef = admin.database().ref();
+var usersRef = admin.database().ref('users');
+var usersByPrefRef = admin.database().ref('users-by-pref');
 
 usersRef.on('child_added', function(snap) {
   var newUserKey = snap.key;
@@ -60,8 +61,6 @@ usersRef.on('child_added', function(snap) {
   }, function(err) {
     console.log(err);
   });
-
-  console.log(newUser.firstName + ' ' + newUser.lastName + ' added!');
 });
 
 usersRef.on('child_changed', function(snap) {
