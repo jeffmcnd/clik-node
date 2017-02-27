@@ -10,29 +10,58 @@ firebase.initializeApp(config);
 
 var dbRef = firebase.database().ref();
 var usersRef = firebase.database().ref('users');
+var usersByPrefRef = firebase.database().ref('users-by-pref');
 
 usersRef.on('child_added', function(snap) {
-  var key = snap.key;
-  var user = snap.val();
+  var newUserKey = snap.key;
+  var newUser = snap.val();
 
   var simpleInfo = {
     photoUrl: '',
-    name: user.firstName + ' ' + user.lastName,
-    age: user.age,
-    career: user.career,
-    school: user.school
+    name: newUser.firstName + ' ' + newUser.lastName,
+    age: newUser.age,
+    career: newUser.career,
+    school: newUser.school
   };
 
-  var prefPath = user.gender + '/' + user.lookingFor + '/' + key;
-
   var newData = {};
-  newData[`users-by-pref/${user.gender}/${user.lookingFor}/${key}}`] = simpleInfo;
+  if(newUser.lookingFor === 'both') {
+    newData[`users-by-pref/${newUser.gender}/female/${newUserKey}}`] = simpleInfo;
+    newData[`users-by-pref/${newUser.gender}/male/${newUserKey}}`] = simpleInfo;
+  } else {
+    newData[`users-by-pref/${newUser.gender}/${newUser.lookingFor}/${newUserKey}}`] = simpleInfo;
+  }
 
   dbRef.update(newData, function(err) {
     if(err) console.log(err);
   });
 
-  console.log(user.firstName + ' ' + user.lastName + ' added!');
+  var potentialsRef = usersByPrefRef.child(newUser.lookingFor).child(newUser.gender)
+    .orderByChild('age')
+    .startAt(newUser.startAge)
+    .endAt(newUser.endAge);
+
+  potentialsRef.once('value', function(snap) {
+    if(!snap.hasChildren()) return;
+
+    var pathsToUpdate = {};
+    snap.forEach(function(childSnap) {
+      var user = childSnap.val();
+      var userKey = childSnap.key;
+      if(userKey !== newUserKey && user.age >= newUser.startAge && user.age <= newUser.endAge) {
+        pathsToUpdate[`queues/${userKey}/${newUserKey}`] = simpleInfo;
+      }
+    });
+    if(Object.keys(pathsToUpdate).length > 0) {
+      dbRef.update(pathsToUpdate, function(err) {
+        if(err) console.log(err);
+      });
+    }
+  }, function(err) {
+    console.log(err);
+  });
+
+  console.log(newUser.firstName + ' ' + newUser.lastName + ' added!');
 });
 
 usersRef.on('child_changed', function(snap) {
