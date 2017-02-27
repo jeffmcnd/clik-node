@@ -4,17 +4,38 @@ var firebase = require('firebase');
 var app = express();
 
 var config = {
-  apiKey: "<API_KEY>",
-  authDomain: "<AUTH_DOMAIN>",
-  databaseURL: "<DB_URL>",
-  storageBucket: "<STORAGE_BUCKET>",
-  messagingSenderId: "<MESSAGE_SENDER_ID>"
 };
 
 firebase.initializeApp(config);
 
-firebase.database().ref('users').on('child_added', function(snap) {
-  console.log(snap.key);
+var dbRef = firebase.database().ref();
+var usersRef = firebase.database().ref('users');
+
+usersRef.on('child_added', function(snap) {
+  var key = snap.key;
+  var user = snap.val();
+
+  var simpleInfo = {
+    photoUrl: '',
+    name: user.firstName + ' ' + user.lastName,
+    age: user.age,
+    career: user.career,
+    school: user.school
+  };
+
+  var prefPath = user.gender + '/' + user.lookingFor + '/' + key;
+
+  var newData = {};
+  newData[`users-by-pref/${user.gender}/${user.lookingFor}/${key}}`] = simpleInfo;
+
+  dbRef.update(newData, function(err) {
+    if(err) console.log(err);
+  });
+
+  console.log(user.firstName + ' ' + user.lastName + ' added!');
+});
+
+usersRef.on('child_changed', function(snap) {
 });
 
 app.listen(3000, function () {
