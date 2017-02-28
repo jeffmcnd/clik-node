@@ -18,49 +18,61 @@ usersRef.on('child_added', function(snap) {
   var newUser = snap.val();
 
   var simpleInfo = {
-    photoUrl: '',
+    photoUrl: newUser.imageUrl,
     name: newUser.firstName + ' ' + newUser.lastName,
     age: newUser.age,
     career: newUser.career,
-    school: newUser.school
+    school: newUser.school,
+    startAge: newUser.startAge,
+    endAge: newUser.endAge
   };
 
   var newData = {};
   if(newUser.lookingFor === 'both') {
-    newData[`users-by-pref/${newUser.gender}/female/${newUserKey}}`] = simpleInfo;
-    newData[`users-by-pref/${newUser.gender}/male/${newUserKey}}`] = simpleInfo;
+    newData[`users-by-pref/${newUser.gender}/female/${newUserKey}`] = simpleInfo;
+    newData[`users-by-pref/${newUser.gender}/male/${newUserKey}`] = simpleInfo;
   } else {
-    newData[`users-by-pref/${newUser.gender}/${newUser.lookingFor}/${newUserKey}}`] = simpleInfo;
+    newData[`users-by-pref/${newUser.gender}/${newUser.lookingFor}/${newUserKey}`] = simpleInfo;
   }
 
   dbRef.update(newData, function(err) {
     if(err) console.log(err);
-  });
+  }).then(function(stuff) {
+    var potentialsRef = usersByPrefRef.child(newUser.lookingFor).child(newUser.gender)
+      .orderByChild('age')
+      .startAt(newUser.startAge)
+      .endAt(newUser.endAge);
 
-  var potentialsRef = usersByPrefRef.child(newUser.lookingFor).child(newUser.gender)
-    .orderByChild('age')
-    .startAt(newUser.startAge)
-    .endAt(newUser.endAge);
+    potentialsRef.once('value', function(snap) {
+      if(!snap.hasChildren()) return;
 
-  potentialsRef.once('value', function(snap) {
-    if(!snap.hasChildren()) return;
-
-    var pathsToUpdate = {};
-    snap.forEach(function(childSnap) {
-      var user = childSnap.val();
-      var userKey = childSnap.key;
-      if(userKey !== newUserKey && user.age >= newUser.startAge && user.age <= newUser.endAge) {
-        pathsToUpdate[`queues/${userKey}/${newUserKey}`] = simpleInfo;
-      }
-    });
-    if(Object.keys(pathsToUpdate).length > 0) {
-      dbRef.update(pathsToUpdate, function(err) {
-        if(err) console.log(err);
+      var pathsToUpdate = {};
+      snap.forEach(function(childSnap) {
+        var user = childSnap.val();
+        var userKey = childSnap.key;
+        if(userKey !== newUserKey && newUser.age >= user.startAge && newUser.age <= user.endAge) {
+          pathsToUpdate[`queues/${userKey}/${newUserKey}`] = simpleInfo;
+          pathsToUpdate[`queues/${newUserKey}/${userKey}`] = {
+            photoUrl: user.photoUrl || '',
+            name: user.name,
+            age: user.age,
+            career: user.career,
+            school: user.school,
+            startAge: user.startAge,
+            endAge: user.endAge
+          };
+        }
       });
-    }
-  }, function(err) {
-    console.log(err);
+      if(Object.keys(pathsToUpdate).length > 0) {
+        dbRef.update(pathsToUpdate, function(err) {
+          if(err) console.log(err);
+        });
+      }
+    }, function(err) {
+      console.log(err);
+    });
   });
+
 });
 
 usersRef.on('child_changed', function(snap) {
