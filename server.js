@@ -9,6 +9,10 @@ admin.initializeApp({
   databaseURL: 'https://clik-e3afb.firebaseio.com'
 });
 
+var encodePath = function(path) {
+  return path.replace(/\//g, '%2F');
+};
+
 var dbRef = admin.database().ref();
 var usersRef = admin.database().ref('users');
 var usersByPrefRef = admin.database().ref('users-by-pref');
@@ -28,11 +32,19 @@ usersRef.on('child_added', function(snap) {
   };
 
   var newData = {};
+  var path = '';
   if(newUser.lookingFor === 'both') {
-    newData[`users-by-pref/${newUser.gender}/female/${newUserKey}`] = simpleInfo;
-    newData[`users-by-pref/${newUser.gender}/male/${newUserKey}`] = simpleInfo;
+    path = `users-by-pref/${newUser.gender}/female/${newUserKey}`;
+    newData[path] = simpleInfo;
+    newData[`users-lookup/${newUserKey}/` + encodePath(path)] = true;
+
+    path = `users-by-pref/${newUser.gender}/male/${newUserKey}`;
+    newData[path] = simpleInfo;
+    newData[`users-lookup/${newUserKey}/` + encodePath(path)] = true;
   } else {
-    newData[`users-by-pref/${newUser.gender}/${newUser.lookingFor}/${newUserKey}`] = simpleInfo;
+    path = `users-by-pref/${newUser.gender}/${newUser.lookingFor}/${newUserKey}`;
+    newData[path] = simpleInfo;
+    newData[`users-lookup/${newUserKey}/` + encodePath(path)] = true;
   }
 
   dbRef.update(newData, function(err) {
@@ -51,8 +63,12 @@ usersRef.on('child_added', function(snap) {
         var user = childSnap.val();
         var userKey = childSnap.key;
         if(userKey !== newUserKey && newUser.age >= user.startAge && newUser.age <= user.endAge) {
-          pathsToUpdate[`queues/${userKey}/${newUserKey}`] = simpleInfo;
-          pathsToUpdate[`queues/${newUserKey}/${userKey}`] = {
+          path = `queues/${userKey}/${newUserKey}`;
+          pathsToUpdate[path] = simpleInfo;
+          pathsToUpdate[`users-lookup/${newUserKey}/` + encodePath(path)] = true;
+
+          path = `queues/${newUserKey}/${userKey}`;
+          pathsToUpdate[path] = {
             photoUrl: user.photoUrl || '',
             name: user.name,
             age: user.age,
@@ -61,8 +77,10 @@ usersRef.on('child_added', function(snap) {
             startAge: user.startAge,
             endAge: user.endAge
           };
+          pathsToUpdate[`users-lookup/${userKey}/` + encodePath(path)] = true;
         }
       });
+
       if(Object.keys(pathsToUpdate).length > 0) {
         dbRef.update(pathsToUpdate, function(err) {
           if(err) console.log(err);
